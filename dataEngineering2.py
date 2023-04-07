@@ -105,9 +105,12 @@ def saveArticles(articles_list: list, user_id):
 
     # Insertion des articles dans la table
     for article in articles_list:
-        query = f"INSERT INTO {table_name} (feed_id, article_id, title, pubDate, description, link) VALUES (%s, %s, %s, %s, %s, %s);"
-        values = (article['feed_id'], article['article_id'], article['title'], article['pubDate'], article['description'], article['link'])
-        session.execute(query, values)
+        try:
+            query = f"INSERT INTO {table_name} (feed_id, article_id, title, pubDate, description, link) VALUES (%s, %s, %s, %s, %s, %s);"
+            values = (article['feed_id'], article['article_id'], article['title'], article['pubDate'], article['description'], article['link'])
+            session.execute(query, values)
+        except:
+            continue
 
 
 # -----------------------------------------------------------------------------------------------------------------------------------
@@ -115,11 +118,10 @@ def saveArticles(articles_list: list, user_id):
 # Les urls sont directement envoyés par la souscription de l'application
 # Liste d'URLs de journaux auquel un utilisateur est abonné
 urls_subscribed = [
-    'https://www.bbc.com/news/world',
-    'https://www.nytimes.com/section/world',
-    'https://edition.cnn.com/world',
-    'https://www.theguardian.com/world',
-    'https://www.lemonde.fr/'
+    'https://rss.nytimes.com/services/xml/rss/nyt/World.xml',
+    'https://www.lemonde.fr/rss/en_continu.xml',
+    'https://www.theguardian.com/world/rss',
+
 ]
 
 
@@ -139,10 +141,20 @@ for url in urls_subscribed:
     
     # Les focntions de web scrapper nous permettent de récupérer les informations des articles et renvoie un dictionnaire avec les clés de notre modèle 
     # Cassandra et les valeurs associées
-    
-    datas = WebScrapper(url)
-    
-    producer.send(topic, value=datas)
+
+    feed = parse(url)
+    for entry in feed.entries:
+        data = {
+            'article_id': entry.id,
+            'feed_id': url,
+            'title': entry.title,
+            'pubDate': entry.published,
+            'description': entry.description,
+            'link': entry.link
+
+        }
+        
+        producer.send(topic, value=data)
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------
 # Partie Recepteur de Kafka
